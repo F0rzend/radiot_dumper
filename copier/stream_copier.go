@@ -1,10 +1,13 @@
-package internal
+package copier
 
 import (
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"time"
+
+	"github.com/gabriel-vasile/mimetype"
 )
 
 type StreamCopier struct {
@@ -24,7 +27,7 @@ var (
 	ErrStreamClosed = errors.New("stream closed")
 )
 
-func (d *StreamCopier) CopyStream(url string, output io.Writer) error {
+func (d *StreamCopier) CopyStream(url string, fileBuilder FileBuilder) error {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -40,23 +43,35 @@ func (d *StreamCopier) CopyStream(url string, output io.Writer) error {
 		return ErrStreamClosed
 	}
 
+	mime, err := mimetype.DetectReader(resp.Body)
+	if err != nil {
+		return err
+	}
+	fileExtension := mime.Extension()
+
+	output, err := fileBuilder.CreateFile(fileExtension)
+	if err != nil {
+		return err
+	}
+	defer logClosing(output)
+
 	if _, err := io.Copy(output, resp.Body); err != nil {
 		return err
 	}
+	log.Println("copied", url)
 
 	return nil
 }
 
 func (d *StreamCopier) ListenAndCopy(
 	url string,
-	output io.Writer,
+	fileBuilder FileBuilder,
 	timeout time.Duration,
 ) error {
 	for {
-		if err := d.CopyStream(url, output); err != nil && err != ErrStreamClosed {
+		if err := d.CopyStream(url, fileBuilder); err != nil && err != ErrStreamClosed {
 			return err
 		}
-
 		time.Sleep(timeout)
 	}
 }

@@ -1,4 +1,4 @@
-package internal
+package copier
 
 import (
 	"io"

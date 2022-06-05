@@ -1,4 +1,4 @@
-package internal
+package copier
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 )
 
 type FileBuilder interface {
-	CreateFile() (*os.File, error)
+	CreateFile(ext string) (*os.File, error)
 }
 
 type DumperService struct {
@@ -28,12 +28,5 @@ func NewDumberService(
 }
 
 func (d *DumperService) ListenAndCopy(path string) error {
-	file, err := d.fileBuilder.CreateFile()
-	if err != nil {
-		return err
-	}
-
-	defer logClosing(file)
-
-	return d.copier.ListenAndCopy(path, file, d.timeout)
+	return d.copier.ListenAndCopy(path, d.fileBuilder, d.timeout)
 }
