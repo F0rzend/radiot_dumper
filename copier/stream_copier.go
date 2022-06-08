@@ -1,25 +1,35 @@
 package copier
 
 import (
+	"bufio"
 	"errors"
-	"io"
-	"log"
-	"net/http"
-	"time"
-
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"io"
+	"net/http"
+	"os"
+	"time"
+)
+
+const (
+	fileHeaderSize = 262 // Maximal size of a file header. It's enough for detecting the mime type.
 )
 
 type StreamCopier struct {
 	client *http.Client
+	logger zerolog.Logger
 }
 
-func NewStreamCopierService(client *http.Client) *StreamCopier {
+type GetOutputFunc func(ext string) (io.WriteCloser, error)
+
+func NewStreamCopier(client *http.Client, logger zerolog.Logger) *StreamCopier {
 	if client == nil {
 		client = http.DefaultClient
 	}
 	return &StreamCopier{
 		client: client,
+		logger: logger,
 	}
 }
 
@@ -27,7 +37,9 @@ var (
 	ErrStreamClosed = errors.New("stream closed")
 )
 
-func (d *StreamCopier) CopyStream(url string, fileBuilder FileBuilder) error {
+func (d *StreamCopier) CopyStream(url string, getOutput GetOutputFunc) error {
+	log := d.logger.With().Str("request_id", uuid.New().String()).Logger()
+
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -37,39 +49,50 @@ func (d *StreamCopier) CopyStream(url string, fileBuilder FileBuilder) error {
 	if err != nil {
 		return err
 	}
-	defer logClosing(resp.Body)
+
+	if resp.StatusCode != http.StatusNotFound {
+		d.logger.Debug().Int("status_code", resp.StatusCode).Msg("got response")
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return ErrStreamClosed
 	}
 
-	mime, err := mimetype.DetectReader(resp.Body)
-	if err != nil {
+	buf := bufio.NewReader(resp.Body)
+	fileHeader, err := buf.Peek(fileHeaderSize)
+	if err != nil && err != io.EOF {
 		return err
 	}
+	mime := mimetype.Detect(fileHeader)
 	fileExtension := mime.Extension()
+	log.Debug().Str("extension", fileExtension).Msg("detected extension")
 
-	output, err := fileBuilder.CreateFile(fileExtension)
+	output, err := getOutput(fileExtension)
 	if err != nil {
 		return err
 	}
-	defer logClosing(output)
-
-	if _, err := io.Copy(output, resp.Body); err != nil {
-		return err
+	defer func() {
+		if err := output.Close(); err != nil {
+			log.Error().Err(err).Msg("error closing output")
+		}
+	}()
+	if file, ok := output.(*os.File); ok {
+		log.Debug().Str("filename", file.Name()).Msg("output in file")
 	}
-	log.Println("copied", url)
 
-	return nil
+	bytesCopied, err := io.Copy(output, buf)
+	log.Debug().Int64("bytes_copied", bytesCopied).Msg("copied bytes")
+
+	return err
 }
 
 func (d *StreamCopier) ListenAndCopy(
 	url string,
-	fileBuilder FileBuilder,
+	getOutput GetOutputFunc,
 	timeout time.Duration,
 ) error {
 	for {
-		if err := d.CopyStream(url, fileBuilder); err != nil && err != ErrStreamClosed {
+		if err := d.CopyStream(url, getOutput); err != nil && err != ErrStreamClosed {
 			return err
 		}
 		time.Sleep(timeout)

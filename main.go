@@ -1,12 +1,15 @@
 package main
 
 import (
-	"log"
+	syslog "log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/F0rzend/radiot_dumper/copier"
 	"github.com/ilyakaznacheev/cleanenv"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -19,36 +22,58 @@ type Config struct {
 	FileDateFormat  string `yaml:"file_date_format" env:"FILE_DATE_FORMAT" env-default:"02_01_2006"`
 	OutputDirectory string `yaml:"output_directory" env:"OUTPUT_DIRECTORY"`
 	Timeout         string `yaml:"timeout" env:"TIMEOUT" env-default:"10s"`
+	LogLevel        string `yaml:"log_level" env:"LOG_LEVEL" env-default:"info"`
 }
 
-func main() {
+func Run() error {
 	cfg := Config{}
 	if err := cleanenv.ReadConfig(configFileName, &cfg); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	timeout, err := time.ParseDuration(cfg.Timeout)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	dumper := copier.NewDumberService(
-		copier.NewStreamCopierService(
-			&http.Client{
-				Timeout: 0,
-			},
-		),
-		copier.NewDatedFileBuilder(
-			copier.DatedFileOptions{
-				OutputDirectory: cfg.OutputDirectory,
-				Prefix:          cfg.FilePrefix,
-				DateFormat:      cfg.FileDateFormat,
-			},
-		),
-		timeout,
+	datedFileBuilder := copier.NewDatedFileBuilder(
+		cfg.OutputDirectory,
+		os.DirFS(cfg.OutputDirectory),
+		cfg.FilePrefix,
+		cfg.FileDateFormat,
 	)
 
-	if err := dumper.ListenAndCopy(cfg.SourceURL); err != nil {
-		log.Fatal(err)
+	logger := log.
+		Output(zerolog.ConsoleWriter{Out: os.Stderr}).
+		Level(Must(zerolog.ParseLevel(cfg.LogLevel))).
+		With().
+		Caller().
+		Logger()
+
+	streamCopier := copier.NewStreamCopier(
+		&http.Client{
+			Timeout: 0,
+		},
+		logger,
+	)
+
+	logger.Info().Str("url", cfg.SourceURL).Dur("timeout", timeout).Msg("Starting dumping")
+	return streamCopier.ListenAndCopy(
+		cfg.SourceURL,
+		datedFileBuilder.GetOutput,
+		timeout,
+	)
+}
+
+func main() {
+	if err := Run(); err != nil {
+		syslog.Fatal(err)
 	}
+}
+
+func Must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }
