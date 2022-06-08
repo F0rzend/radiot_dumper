@@ -89,12 +89,12 @@ func (d *StreamCopier) CopyStream(url string, getOutput GetOutputFunc) error {
 func (d *StreamCopier) ListenAndCopy(
 	url string,
 	getOutput GetOutputFunc,
-	timeout time.Duration,
+	delay time.Duration,
 ) error {
 	for {
 		if err := d.CopyStream(url, getOutput); err != nil && err != ErrStreamClosed {
 			return err
 		}
-		time.Sleep(timeout)
+		time.Sleep(delay)
 	}
 }

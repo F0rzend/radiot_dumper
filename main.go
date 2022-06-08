@@ -21,7 +21,7 @@ type Config struct {
 	FilePrefix      string `yaml:"file_prefix" env:"FILE_PREFIX"`
 	FileDateFormat  string `yaml:"file_date_format" env:"FILE_DATE_FORMAT" env-default:"02_01_2006"`
 	OutputDirectory string `yaml:"output_directory" env:"OUTPUT_DIRECTORY"`
-	Timeout         string `yaml:"timeout" env:"TIMEOUT" env-default:"10s"`
+	Delay           string `yaml:"delay" env:"DELAY" env-default:"10s"`
 	LogLevel        string `yaml:"log_level" env:"LOG_LEVEL" env-default:"info"`
 }
 
@@ -39,7 +39,7 @@ func Run() error {
 		return err
 	}
 
-	timeout, err := time.ParseDuration(cfg.Timeout)
+	delay, err := time.ParseDuration(cfg.Delay)
 	if err != nil {
 		return err
 	}
@@ -65,11 +65,11 @@ func Run() error {
 		logger,
 	)
 
-	logger.Info().Str("url", cfg.SourceURL).Dur("timeout", timeout).Msg("Starting dumping")
+	logger.Info().Str("url", cfg.SourceURL).Dur("delay", delay).Msg("Starting dumping")
 	return streamCopier.ListenAndCopy(
 		cfg.SourceURL,
 		datedFileBuilder.GetOutput,
-		timeout,
+		delay,
 	)
 }
 
