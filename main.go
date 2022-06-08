@@ -27,7 +27,15 @@ type Config struct {
 
 func Run() error {
 	cfg := Config{}
-	if err := cleanenv.ReadConfig(configFileName, &cfg); err != nil {
+
+	_, err := os.Stat(configFileName)
+	if os.IsNotExist(err) {
+		err = cleanenv.ReadEnv(&cfg)
+	} else {
+		err = cleanenv.ReadConfig(configFileName, &cfg)
+	}
+
+	if err != nil {
 		return err
 	}
 

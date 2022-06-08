@@ -1,0 +1,11 @@
+services:
+  app:
+    image: app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      SOURCE_URL: https://stream.radio-t.com/
+      FILE_PREFIX: radio-t_
+    volumes:
+      - ./records:/tmp/output
