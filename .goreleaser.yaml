@@ -1,0 +1,37 @@
+before:
+  hooks:
+    - go mod tidy
+    - go test -v ./...
+
+gomod:
+  proxy: true
+
+universal_binaries:
+  - replace: false
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+
+archives:
+  - replacements:
+      darwin: MacOS
+      linux: Linux
+      windows: Windows
+      amd64: 64-bit
+      386: 32-bit
+      all: Universal
+
+    wrap_in_directory: true
+
+    format_overrides:
+      - goos: windows
+        format: zip
+
+release:
+  mode: keep-existing
+  draft: true

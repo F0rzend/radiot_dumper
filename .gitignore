@@ -1,2 +1,6 @@
 .idea/
 dumper.yml
+
+records/*
+!records/.gitkeep
+dist/
