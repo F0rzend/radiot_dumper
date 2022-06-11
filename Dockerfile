@@ -2,20 +2,20 @@ ARG GO_VERSION=1.18
 
 FROM golang:${GO_VERSION}-alpine as builder
 
-WORKDIR /go/src/
+WORKDIR /build
+
+COPY go.mod go.sum ./
+RUN go mod download
 
 COPY . .
 
 ENV CGO_ENABLED=0
-ENV GO_OSARCH="linux/amd64"
+RUN go build -ldflags "-s -w" -o ./app .
 
-RUN go build -o /go/bin/binary main.go
+FROM gcr.io/distroless/base:latest
 
-FROM gcr.io/distroless/base
+COPY --from=builder /build/app /app
 
-COPY --from=builder /go/bin/binary /go/bin/binary
+ENV OUTPUT_DIRECTORY=/tmp/records
 
-ENV OUTPUT_DIRECTORY=/tmp/output
-VOLUME /tmp/output
-
-CMD ["/go/bin/binary"]
+CMD ["/app"]
