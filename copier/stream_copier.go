@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 )
 
 const (
@@ -84,17 +83,4 @@ func (d *StreamCopier) CopyStream(url string, getOutput GetOutputFunc) error {
 	log.Debug().Int64("bytes_copied", bytesCopied).Msg("copied bytes")
 
 	return err
-}
-
-func (d *StreamCopier) ListenAndCopy(
-	url string,
-	getOutput GetOutputFunc,
-	delay time.Duration,
-) error {
-	for {
-		if err := d.CopyStream(url, getOutput); err != nil && err != ErrStreamClosed {
-			return err
-		}
-		time.Sleep(delay)
-	}
 }
