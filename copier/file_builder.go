@@ -67,5 +67,10 @@ func (f *DatedFileBuilder) GetFileName(ext string) string {
 }
 
 func (f *DatedFileBuilder) GetOutput(ext string) (io.WriteCloser, error) {
-	return os.Create(f.GetFileName(ext))
+	filename := f.GetFileName(ext)
+	return os.OpenFile(
+		filename,
+		os.O_CREATE|os.O_WRONLY,
+		fs.ModePerm,
+	)
 }

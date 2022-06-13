@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	syslog "log"
 	"net/http"
 	"os"
+	"os/signal"
 	"time"
 
 	"github.com/F0rzend/radiot_dumper/copier"
@@ -17,12 +19,14 @@ const (
 )
 
 type Config struct {
-	SourceURL       string `yaml:"source_url" env:"SOURCE_URL"`
-	FilePrefix      string `yaml:"file_prefix" env:"FILE_PREFIX"`
-	FileDateFormat  string `yaml:"file_date_format" env:"FILE_DATE_FORMAT" env-default:"02_01_2006"`
+	SourceURL       string `yaml:"source_url"       env:"SOURCE_URL"`
+	FilePrefix      string `yaml:"file_prefix"      env:"FILE_PREFIX"`
+	Schedule        string `yaml:"schedule"         env:"SCHEDULE"`
+	Duration        string `yaml:"duration"         env:"DURATION"`
 	OutputDirectory string `yaml:"output_directory" env:"OUTPUT_DIRECTORY"`
-	Delay           string `yaml:"delay" env:"DELAY" env-default:"10s"`
-	LogLevel        string `yaml:"log_level" env:"LOG_LEVEL" env-default:"info"`
+	FileDateFormat  string `yaml:"file_date_format" env:"FILE_DATE_FORMAT" env-default:"02_01_2006"`
+	Delay           string `yaml:"delay"            env:"DELAY"            env-default:"5s"`
+	LogLevel        string `yaml:"log_level"        env:"LOG_LEVEL"        env-default:"info"`
 }
 
 func Run() error {
@@ -40,6 +44,10 @@ func Run() error {
 	}
 
 	delay, err := time.ParseDuration(cfg.Delay)
+	if err != nil {
+		return err
+	}
+	duration, err := time.ParseDuration(cfg.Duration)
 	if err != nil {
 		return err
 	}
@@ -65,12 +73,22 @@ func Run() error {
 		logger,
 	)
 
-	logger.Info().Str("url", cfg.SourceURL).Dur("delay", delay).Msg("Starting dumping")
-	return streamCopier.ListenAndCopy(
+	runner := copier.NewRunner(streamCopier)
+
+	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+
+	if err = runner.ScheduleRecording(
+		cfg.Schedule,
+		duration,
 		cfg.SourceURL,
 		datedFileBuilder.GetOutput,
 		delay,
-	)
+	); err != nil {
+		logger.Error().Err(err).Msg("Error scheduling recording")
+	}
+
+	<-ctx.Done()
+	return nil
 }
 
 func main() {

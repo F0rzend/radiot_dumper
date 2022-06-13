@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 )
 
 const (
@@ -58,6 +57,8 @@ func (d *StreamCopier) CopyStream(url string, getOutput GetOutputFunc) error {
 		return ErrStreamClosed
 	}
 
+	log.Info().Msg("recording started")
+
 	buf := bufio.NewReader(resp.Body)
 	fileHeader, err := buf.Peek(fileHeaderSize)
 	if err != nil && err != io.EOF {
@@ -83,18 +84,6 @@ func (d *StreamCopier) CopyStream(url string, getOutput GetOutputFunc) error {
 	bytesCopied, err := io.Copy(output, buf)
 	log.Debug().Int64("bytes_copied", bytesCopied).Msg("copied bytes")
 
+	log.Info().Msg("recording finished")
 	return err
-}
-
-func (d *StreamCopier) ListenAndCopy(
-	url string,
-	getOutput GetOutputFunc,
-	delay time.Duration,
-) error {
-	for {
-		if err := d.CopyStream(url, getOutput); err != nil && err != ErrStreamClosed {
-			return err
-		}
-		time.Sleep(delay)
-	}
 }
