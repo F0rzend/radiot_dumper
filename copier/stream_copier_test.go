@@ -5,6 +5,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,48 +21,67 @@ func (c *closableBuffer) Close() error {
 	return nil
 }
 
-func TestStreamCopier_CopyStream_Success(t *testing.T) {
+func TestStreamCopier(t *testing.T) {
 	t.Parallel()
 
-	serverOutput := []byte("Hello World!")
+	testCases := []struct {
+		name    string
+		handler http.HandlerFunc
+		err     error
+		output  []byte
+	}{
+		{
+			name:    "success",
+			handler: handlerSuccess,
+			output:  []byte("Hello World!"),
+			err:     nil,
+		},
+		{
+			name:    "not found",
+			handler: handlerNotFound,
+			output:  []byte{},
+			err:     ErrStreamClosed,
+		},
+		{
+			name:    "with interrupt",
+			handler: getHandlerWithInterrupt(),
+			output:  []byte("12"),
+			err:     nil,
+		},
+	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, err := w.Write(serverOutput)
-		assert.NoError(t, err)
-	}))
-	defer server.Close()
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	copier := NewStreamCopier(http.DefaultClient, testLogger)
+			server := httptest.NewServer(tc.handler)
+			defer server.Close()
 
-	output := new(closableBuffer)
+			copier := NewStreamCopier(http.DefaultClient, testLogger)
+			output := new(closableBuffer)
 
-	err := copier.CopyStream(server.URL, func(_ string) (io.WriteCloser, error) {
-		return output, nil
-	})
-	assert.NoError(t, err)
-	assert.Equal(t, serverOutput, output.Bytes())
+			err := copier.CopyStream(server.URL, func(_ string) (io.WriteCloser, error) {
+				return output, nil
+			})
+			assert.Equal(t, tc.err, err)
+		})
+	}
 }
 
-func TestStreamCopier_CopyStream_WithStreamClosed(t *testing.T) {
-	t.Parallel()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer server.Close()
-
-	copier := NewStreamCopier(http.DefaultClient, testLogger)
-
-	err := copier.CopyStream(server.URL, func(_ string) (io.WriteCloser, error) {
-		return new(closableBuffer), nil
-	})
-
-	assert.ErrorIs(t, err, ErrStreamClosed)
+func handlerSuccess(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	_, err := w.Write([]byte("Hello World!"))
+	if err != nil {
+		log.Println(err)
+	}
 }
 
-func TestStreamCopier_CopyStream_WithInterrupts(t *testing.T) {
-	t.Parallel()
+func handlerNotFound(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusNotFound)
+}
 
+func getHandlerWithInterrupt() http.HandlerFunc {
 	responses := []struct {
 		status int
 		body   []byte
@@ -78,8 +98,7 @@ func TestStreamCopier_CopyStream_WithInterrupts(t *testing.T) {
 			body:   []byte("2"),
 		},
 	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
 			http.NotFound(w, r)
@@ -89,18 +108,8 @@ func TestStreamCopier_CopyStream_WithInterrupts(t *testing.T) {
 		for _, response := range responses {
 			w.WriteHeader(response.status)
 			_, err := w.Write(response.body)
-			assert.NoError(t, err)
+			log.Println(err)
 			flusher.Flush()
 		}
-	}))
-	defer server.Close()
-
-	copier := NewStreamCopier(http.DefaultClient, testLogger)
-	output := new(closableBuffer)
-
-	err := copier.CopyStream(server.URL, func(_ string) (io.WriteCloser, error) {
-		return output, nil
-	})
-	assert.NoError(t, err)
-	assert.Equal(t, []byte("12"), output.Bytes())
+	}
 }
