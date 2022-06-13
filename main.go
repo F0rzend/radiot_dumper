@@ -19,14 +19,14 @@ const (
 )
 
 type Config struct {
-	SourceURL       string `yaml:"source_url" env:"SOURCE_URL"`
-	FilePrefix      string `yaml:"file_prefix" env:"FILE_PREFIX"`
-	Schedule        string `yaml:"schedule" env:"SCHEDULE"`
-	Duration        string `yaml:"duration" env:"DURATION"`
+	SourceURL       string `yaml:"source_url"       env:"SOURCE_URL"`
+	FilePrefix      string `yaml:"file_prefix"      env:"FILE_PREFIX"`
+	Schedule        string `yaml:"schedule"         env:"SCHEDULE"`
+	Duration        string `yaml:"duration"         env:"DURATION"`
 	OutputDirectory string `yaml:"output_directory" env:"OUTPUT_DIRECTORY"`
 	FileDateFormat  string `yaml:"file_date_format" env:"FILE_DATE_FORMAT" env-default:"02_01_2006"`
-	Delay           string `yaml:"delay" env:"DELAY" env-default:"5s"`
-	LogLevel        string `yaml:"log_level" env:"LOG_LEVEL" env-default:"info"`
+	Delay           string `yaml:"delay"            env:"DELAY"            env-default:"5s"`
+	LogLevel        string `yaml:"log_level"        env:"LOG_LEVEL"        env-default:"info"`
 }
 
 func Run() error {
