@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	syslog "log"
 	"net/http"
 	"os"
@@ -34,8 +35,10 @@ func Run() error {
 
 	_, err := os.Stat(configFileName)
 	if os.IsNotExist(err) {
+		fmt.Printf("Config file %s not found, using environment variables\n", configFileName)
 		err = cleanenv.ReadEnv(&cfg)
 	} else {
+		fmt.Printf("Using config file %s\n", configFileName)
 		err = cleanenv.ReadConfig(configFileName, &cfg)
 	}
 

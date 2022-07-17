@@ -16,6 +16,4 @@ FROM gcr.io/distroless/base:latest
 
 COPY --from=builder /build/app /app
 
-ENV OUTPUT_DIRECTORY=/tmp/records
-
 CMD ["/app"]
