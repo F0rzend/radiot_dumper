@@ -130,6 +130,18 @@ func TestDetectExtension(t *testing.T) {
 			expected: ".mp3",
 		},
 		{
+			name:     "wrong header",
+			header:   "i'm wrong!",
+			body:     "",
+			expected: "",
+		},
+		{
+			name:     "extension by not found",
+			header:   "i'm/doesn't exist",
+			body:     "",
+			expected: "",
+		},
+		{
 			name:     "by body",
 			header:   "",
 			body:     "Hello, World!",

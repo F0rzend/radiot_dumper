@@ -95,11 +95,21 @@ func DetectExtension(r *http.Response) (string, error) {
 }
 
 func extensionFromContentType(contentType string) (string, error) {
-	extension, err := mime.ExtensionsByType(contentType)
+	if !isSupportedContentType(contentType) {
+		return "", nil
+	}
+
+	extensions, err := mime.ExtensionsByType(contentType)
 	if err != nil {
 		return "", err
 	}
-	return extension[0], nil
+
+	return extensions[0], nil
+}
+
+func isSupportedContentType(contentType string) bool {
+	_, _, err := mime.ParseMediaType(contentType)
+	return err == nil
 }
 
 func extensionFromBody(body io.Reader) (string, error) {
