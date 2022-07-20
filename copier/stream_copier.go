@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 )
@@ -59,13 +60,10 @@ func (d *StreamCopier) CopyStream(url string, getOutput GetOutputFunc) error {
 
 	log.Info().Msg("recording started")
 
-	buf := bufio.NewReader(resp.Body)
-	fileHeader, err := buf.Peek(fileHeaderSize)
-	if err != nil && err != io.EOF {
+	fileExtension, err := DetectExtension(resp)
+	if err != nil {
 		return err
 	}
-	mime := mimetype.Detect(fileHeader)
-	fileExtension := mime.Extension()
 	log.Debug().Str("extension", fileExtension).Msg("detected extension")
 
 	output, err := getOutput(fileExtension)
@@ -81,9 +79,34 @@ func (d *StreamCopier) CopyStream(url string, getOutput GetOutputFunc) error {
 		log.Debug().Str("filename", file.Name()).Msg("output in file")
 	}
 
-	bytesCopied, err := io.Copy(output, buf)
+	bytesCopied, err := io.Copy(output, resp.Body)
 	log.Debug().Int64("bytes_copied", bytesCopied).Msg("copied bytes")
 
 	log.Info().Msg("recording finished")
 	return err
+}
+
+func DetectExtension(r *http.Response) (string, error) {
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "" {
+		return extensionFromContentType(contentType)
+	}
+	return extensionFromBody(r.Body)
+}
+
+func extensionFromContentType(contentType string) (string, error) {
+	extension, err := mime.ExtensionsByType(contentType)
+	if err != nil {
+		return "", err
+	}
+	return extension[0], nil
+}
+
+func extensionFromBody(body io.Reader) (string, error) {
+	buf := bufio.NewReader(body)
+	fileHeader, err := buf.Peek(fileHeaderSize)
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	return mimetype.Detect(fileHeader).Extension(), nil
 }

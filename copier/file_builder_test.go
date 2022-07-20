@@ -4,6 +4,7 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/stretchr/testify/assert"
 	"io/fs"
+	"mime"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -140,6 +141,8 @@ func TestDatedFileBuilder_getFileName(t *testing.T) {
 }
 
 func TestFileDetection(t *testing.T) {
+	t.Skip("Library doesn't support this")
+
 	t.Parallel()
 
 	// Radio-T stream header
@@ -157,12 +160,24 @@ func TestFileDetection(t *testing.T) {
 		249, 205, 0, 67, 51, 44, 234, 119, 55, 128, 0, 190, 78, 119, 255, 185, 198,
 	}
 
-	mime := mimetype.Detect(header)
-	fileExtension := mime.Extension()
-
-	t.Log(mime)
+	headerMime := mimetype.Detect(header)
+	fileExtension := headerMime.Extension()
 
 	if fileExtension == "" {
 		t.Errorf("File extension not detected")
 	}
+}
+
+func TestMimeTypeDetection(t *testing.T) {
+	t.Parallel()
+
+	const (
+		contentType     = "audio/mpeg"
+		expectExtension = ".mp3"
+	)
+
+	extension, err := mime.ExtensionsByType(contentType)
+
+	assert.NoError(t, err)
+	assert.Contains(t, extension, expectExtension)
 }

@@ -113,3 +113,50 @@ func getHandlerWithInterrupt() http.HandlerFunc {
 		}
 	}
 }
+
+func TestDetectExtension(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		header   string
+		body     string
+		expected string
+	}{
+		{
+			name:     "by header",
+			header:   "audio/mpeg",
+			body:     "",
+			expected: ".mp3",
+		},
+		{
+			name:     "by body",
+			header:   "",
+			body:     "Hello, World!",
+			expected: ".txt",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := &http.Response{
+				Header: http.Header{
+					"Content-Type": []string{tc.header},
+				},
+				Body: &closableBuffer{
+					Buffer: *bytes.NewBuffer(
+						[]byte(tc.body),
+					),
+				},
+			}
+
+			actual, err := DetectExtension(r)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
