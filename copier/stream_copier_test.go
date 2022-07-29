@@ -2,13 +2,14 @@ package copier
 
 import (
 	"bytes"
-	"github.com/rs/zerolog"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 )
 
 var testLogger = zerolog.New(nil)
@@ -171,4 +172,31 @@ func TestDetectExtension(t *testing.T) {
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
+}
+
+// Check if the files copied by StreamCopier have the same length as the original
+// files.
+func TestStreamCopierFileLength(t *testing.T) {
+	response := []byte("Hello World!")
+	handler := func(w http.ResponseWriter, _ *http.Request) {
+		// Force extension detection to look into the response body.
+		w.Header().Set("Content-type", "")
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write(response)
+		if err != nil {
+			log.Println(err)
+		}
+	}
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+
+	copier := NewStreamCopier(http.DefaultClient, testLogger)
+	output := new(closableBuffer)
+
+	err := copier.CopyStream(server.URL, func(_ string) (io.WriteCloser, error) {
+		return output, nil
+	})
+	assert.Equal(t, err, nil)
+	// Check if output length is what we expect.
+	assert.Equal(t, len(response), output.Len())
 }
