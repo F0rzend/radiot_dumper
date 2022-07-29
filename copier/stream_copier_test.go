@@ -166,7 +166,7 @@ func TestDetectExtension(t *testing.T) {
 				},
 			}
 
-			actual, err := DetectExtension(r)
+			actual, _, err := DetectExtension(r)
 
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
