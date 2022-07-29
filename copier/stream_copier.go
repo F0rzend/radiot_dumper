@@ -13,10 +13,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const (
-	fileHeaderSize = 262 // Maximal size of a file header. It's enough for detecting the mime type.
-)
-
 type StreamCopier struct {
 	client *http.Client
 	logger zerolog.Logger
@@ -47,6 +43,11 @@ func (d *StreamCopier) CopyStream(url string, getOutput GetOutputFunc) error {
 	}
 
 	resp, err := d.client.Do(req)
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Error().Err(err).Msg("error closing response body")
+		}
+	}()
 	if err != nil {
 		return err
 	}
