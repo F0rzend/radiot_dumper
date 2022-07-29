@@ -1,15 +1,16 @@
 package copier
 
 import (
-	"bufio"
+	"bytes"
 	"errors"
-	"github.com/gabriel-vasile/mimetype"
-	"github.com/google/uuid"
-	"github.com/rs/zerolog"
 	"io"
 	"mime"
 	"net/http"
 	"os"
+
+	"github.com/gabriel-vasile/mimetype"
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -60,7 +61,7 @@ func (d *StreamCopier) CopyStream(url string, getOutput GetOutputFunc) error {
 
 	log.Info().Msg("recording started")
 
-	fileExtension, err := DetectExtension(resp)
+	fileExtension, body, err := DetectExtension(resp)
 	if err != nil {
 		return err
 	}
@@ -79,17 +80,21 @@ func (d *StreamCopier) CopyStream(url string, getOutput GetOutputFunc) error {
 		log.Debug().Str("filename", file.Name()).Msg("output in file")
 	}
 
-	bytesCopied, err := io.Copy(output, resp.Body)
+	bytesCopied, err := io.Copy(output, body)
 	log.Debug().Int64("bytes_copied", bytesCopied).Msg("copied bytes")
 
 	log.Info().Msg("recording finished")
 	return err
 }
 
-func DetectExtension(r *http.Response) (string, error) {
+// DetectExtension returns response extension by first looking into response headers.
+// As a fallback, it looks into response body and returns the extension and a new
+// body containing the original content.
+func DetectExtension(r *http.Response) (string, io.Reader, error) {
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "" {
-		return extensionFromContentType(contentType)
+		ext, err := extensionFromContentType(contentType)
+		return ext, r.Body, err
 	}
 	return extensionFromBody(r.Body)
 }
@@ -112,11 +117,18 @@ func isSupportedContentType(contentType string) bool {
 	return err == nil
 }
 
-func extensionFromBody(body io.Reader) (string, error) {
-	buf := bufio.NewReader(body)
-	fileHeader, err := buf.Peek(fileHeaderSize)
-	if err != nil && err != io.EOF {
-		return "", err
-	}
-	return mimetype.Detect(fileHeader).Extension(), nil
+// extensionFromBody returns the extension of the file contained by body and a
+// new body containing the original input file.
+func extensionFromBody(body io.Reader) (ext string, newBody io.Reader, err error) {
+	// header will store the bytes mimetype uses for detection.
+	header := bytes.NewBuffer(nil)
+
+	// After DetectReader, the data read from input is copied into header.
+	mtype, err := mimetype.DetectReader(io.TeeReader(body, header))
+
+	// Concatenate back the header to the rest of the file.
+	// newBody now contains the complete, original data.
+	newBody = io.MultiReader(header, body)
+
+	return mtype.Extension(), newBody, err
 }
