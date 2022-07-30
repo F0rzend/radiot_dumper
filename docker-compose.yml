@@ -7,7 +7,8 @@ services:
     environment:
       SOURCE_URL: https://stream.radio-t.com/
       FILE_PREFIX: radio-t_
-      SCHEDULE: 00 20 * * sat
+      SCHEDULE: 00 23 * * sat
+      TZ: "Europe/Moscow"
       OUTPUT_DIRECTORY: /tmp/output
       DURATION: 4h
       LOG_LEVEL: debug

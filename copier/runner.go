@@ -3,7 +3,6 @@ package copier
 import (
 	"fmt"
 	"github.com/robfig/cron/v3"
-	"github.com/rs/zerolog/log"
 	"time"
 )
 
@@ -60,7 +59,7 @@ func (r *Runner) record(
 	start := time.Now()
 	finish := start.Add(duration)
 	for {
-		log.Debug().Msg("RUN")
+		r.copier.logger.Debug().Msg("RUN")
 		if time.Now().After(finish) {
 			return
 		}

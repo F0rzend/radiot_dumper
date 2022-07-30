@@ -93,29 +93,33 @@ func (d *StreamCopier) CopyStream(url string, getOutput GetOutputFunc) error {
 // body containing the original content.
 func DetectExtension(r *http.Response) (string, io.Reader, error) {
 	contentType := r.Header.Get("Content-Type")
-	if contentType != "" {
-		ext, err := extensionFromContentType(contentType)
+	if ext, err := extensionFromContentType(contentType); err == nil {
 		return ext, r.Body, err
 	}
 	return extensionFromBody(r.Body)
 }
 
 func extensionFromContentType(contentType string) (string, error) {
-	if !isSupportedContentType(contentType) {
-		return "", nil
-	}
+	weightedExtensions := []string{".mp3"}
 
-	extensions, err := mime.ExtensionsByType(contentType)
+	acceptableExtensions, err := mime.ExtensionsByType(contentType)
 	if err != nil {
 		return "", err
 	}
+	if len(acceptableExtensions) == 0 {
+		return ".unknown", nil
+	}
 
-	return extensions[0], nil
-}
+	for _, preferred := range weightedExtensions {
+		for _, option := range acceptableExtensions {
+			if preferred == option {
+				return option, nil
+			}
+		}
 
-func isSupportedContentType(contentType string) bool {
-	_, _, err := mime.ParseMediaType(contentType)
-	return err == nil
+	}
+
+	return acceptableExtensions[0], nil
 }
 
 // extensionFromBody returns the extension of the file contained by body and a
