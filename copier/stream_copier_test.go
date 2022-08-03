@@ -2,17 +2,15 @@ package copier
 
 import (
 	"bytes"
+	"context"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 )
-
-var testLogger = zerolog.New(nil)
 
 type closableBuffer struct {
 	bytes.Buffer
@@ -59,12 +57,16 @@ func TestStreamCopier(t *testing.T) {
 			server := httptest.NewServer(tc.handler)
 			defer server.Close()
 
-			copier := NewStreamCopier(http.DefaultClient, testLogger)
+			copier := NewStreamCopier(http.DefaultClient)
 			output := new(closableBuffer)
 
-			err := copier.CopyStream(server.URL, func(_ string) (io.WriteCloser, error) {
-				return output, nil
-			})
+			err := copier.CopyStream(
+				context.Background(),
+				server.URL,
+				func(_ string) (io.WriteCloser, error) {
+					return output, nil
+				},
+			)
 			assert.Equal(t, tc.err, err)
 		})
 	}
@@ -74,7 +76,7 @@ func handlerSuccess(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, err := w.Write([]byte("Hello World!"))
 	if err != nil {
-		log.Println(err)
+		log.Error().Err(err).Msg("failed to write response")
 	}
 }
 
@@ -109,7 +111,7 @@ func getHandlerWithInterrupt() http.HandlerFunc {
 		for _, response := range responses {
 			w.WriteHeader(response.status)
 			_, err := w.Write(response.body)
-			log.Println(err)
+			log.Error().Err(err).Msg("failed to write response")
 			flusher.Flush()
 		}
 	}
@@ -134,13 +136,13 @@ func TestDetectExtension(t *testing.T) {
 			name:     "wrong header",
 			header:   "i'm wrong!",
 			body:     "",
-			expected: "",
+			expected: ".txt",
 		},
 		{
 			name:     "extension by not found",
 			header:   "i'm/doesn't exist",
 			body:     "",
-			expected: "",
+			expected: ".txt",
 		},
 		{
 			name:     "by body",
@@ -166,7 +168,7 @@ func TestDetectExtension(t *testing.T) {
 				},
 			}
 
-			actual, _, err := DetectExtension(r)
+			actual, _, err := DetectExtension(log.Logger.WithContext(context.Background()), r)
 
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
@@ -184,18 +186,22 @@ func TestStreamCopierFileLength(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write(response)
 		if err != nil {
-			log.Println(err)
+			log.Error().Err(err).Msg("failed to write response")
 		}
 	}
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	defer server.Close()
 
-	copier := NewStreamCopier(http.DefaultClient, testLogger)
+	copier := NewStreamCopier(http.DefaultClient)
 	output := new(closableBuffer)
 
-	err := copier.CopyStream(server.URL, func(_ string) (io.WriteCloser, error) {
-		return output, nil
-	})
+	err := copier.CopyStream(
+		context.Background(),
+		server.URL,
+		func(_ string) (io.WriteCloser, error) {
+			return output, nil
+		},
+	)
 	assert.Equal(t, err, nil)
 	// Check if output length is what we expect.
 	assert.Equal(t, len(response), output.Len())

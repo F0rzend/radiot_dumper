@@ -1,8 +1,10 @@
 package copier
 
 import (
+	"context"
 	"fmt"
 	"github.com/robfig/cron/v3"
+	"github.com/rs/zerolog"
 	"time"
 )
 
@@ -21,6 +23,7 @@ func NewRunner(copier *StreamCopier) *Runner {
 }
 
 func (r *Runner) ScheduleRecording(
+	ctx context.Context,
 	cronString string,
 	duration time.Duration,
 	url string,
@@ -28,7 +31,10 @@ func (r *Runner) ScheduleRecording(
 	delay time.Duration,
 ) error {
 	c := cron.New()
-	entryID, err := c.AddFunc(cronString, func() { r.record(url, outputFunc, duration, delay) })
+	entryID, err := c.AddFunc(
+		cronString,
+		func() { r.record(ctx, url, outputFunc, duration, delay) },
+	)
 	if err != nil {
 		return err
 	}
@@ -40,7 +46,7 @@ func (r *Runner) ScheduleRecording(
 		return fmt.Errorf("entry with id %v not found", entryID)
 	}
 
-	r.copier.logger.Info().
+	zerolog.Ctx(ctx).Info().
 		Str("url", url).
 		Str("delay", delay.String()).
 		Str("next_call", entry.Next.Format(readableTimeLayout)).
@@ -51,6 +57,7 @@ func (r *Runner) ScheduleRecording(
 }
 
 func (r *Runner) record(
+	ctx context.Context,
 	url string,
 	outputFunc GetOutputFunc,
 	duration time.Duration,
@@ -59,12 +66,12 @@ func (r *Runner) record(
 	start := time.Now()
 	finish := start.Add(duration)
 	for {
-		r.copier.logger.Debug().Msg("RUN")
+		zerolog.Ctx(ctx).Info().Msg("Starting recording")
 		if time.Now().After(finish) {
 			return
 		}
-		if err := r.copier.CopyStream(url, outputFunc); err != nil && err != ErrStreamClosed {
-			r.copier.logger.Error().Err(err).Msg("Error copying stream")
+		if err := r.copier.CopyStream(ctx, url, outputFunc); err != nil && err != ErrStreamClosed {
+			zerolog.Ctx(ctx).Error().Err(err).Msg("Error copying stream")
 			return
 		}
 		time.Sleep(delay)

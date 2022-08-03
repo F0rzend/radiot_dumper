@@ -73,14 +73,15 @@ func Run() error {
 		&http.Client{
 			Timeout: 0,
 		},
-		logger,
 	)
 
 	runner := copier.NewRunner(streamCopier)
 
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	ctx = logger.WithContext(ctx)
 
 	if err = runner.ScheduleRecording(
+		ctx,
 		cfg.Schedule,
 		duration,
 		cfg.SourceURL,
