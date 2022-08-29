@@ -65,16 +65,18 @@ func (r *Runner) record(
 ) {
 	start := time.Now()
 	finish := start.Add(duration)
+	zerolog.Ctx(ctx).Info().Msg("Starting recording")
 	for {
-		zerolog.Ctx(ctx).Info().Msg("Starting recording")
 		if time.Now().After(finish) {
+			zerolog.Ctx(ctx).Info().Msg("recording finished")
 			return
 		}
+
 		if err := r.copier.CopyStream(ctx, url, outputFunc); err != nil && err != ErrStreamClosed {
 			zerolog.Ctx(ctx).Error().Err(err).Msg("Error copying stream")
-			return
 		}
 		time.Sleep(delay)
+		zerolog.Ctx(ctx).Debug().Msg("Retry recording")
 	}
 }
 

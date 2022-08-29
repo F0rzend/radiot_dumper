@@ -80,7 +80,6 @@ func (d *StreamCopier) CopyStream(ctx context.Context, url string, getOutput Get
 	bytesCopied, err := io.Copy(output, body)
 	zerolog.Ctx(ctx).Debug().Int64("bytes_copied", bytesCopied).Msg("copied bytes")
 
-	zerolog.Ctx(ctx).Info().Msg("recording finished")
 	return err
 }
 
